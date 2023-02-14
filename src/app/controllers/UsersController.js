@@ -1,8 +1,13 @@
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import authConfig from "../../config/auth";
 import User from "../models/User";
 
 class UsersController {
   async show(req, res) {
-    const users = await User.findAll();
+    const users = await User.findAll({
+      attributes: { exclude: ["password_hash"] },
+    });
 
     return res.status(200).send(users);
   }
@@ -14,21 +19,34 @@ class UsersController {
     const user = await User.findOne({ where: { email } });
 
     if (!user) {
-      res.status(404).send({ message: "User not found!" });
+      res.status(422).send({ message: "User not found!" });
 
       return;
     }
 
     // check if passwords match
-    if (!password || password !== user.password_hash) {
-      res.status(400).send({ message: "Invalid password!" });
+    const checkPassword = await bcrypt.compare(password, user.password_hash);
+
+    if (!checkPassword) {
+      res.status(422).send({ message: "Invalid password!" });
     }
 
-    res.status(200).send({ message: "Authentication successful!" });
+    const { id, name } = user;
+
+    res.status(200).json({
+      user: {
+        id,
+        name,
+        email,
+      },
+      token: jwt.sign({ id }, authConfig.secret, {
+        expiresIn: authConfig.expiresIn,
+      }),
+    });
   }
 
   async create(req, res) {
-    const { name, email, password_hash, passwordConfirmation } = req.body;
+    const { name, email, password, passwordConfirmation } = req.body;
 
     // validations
     if (!name) {
@@ -39,7 +57,7 @@ class UsersController {
       res.status(422).json({ message: "Email is required!" });
       return;
     }
-    if (!password_hash) {
+    if (!password) {
       res.status(422).json({ message: "Password is required!" });
       return;
     }
@@ -49,7 +67,7 @@ class UsersController {
       return;
     }
 
-    if (!passwordConfirmation || passwordConfirmation !== password_hash) {
+    if (!passwordConfirmation || passwordConfirmation !== password) {
       res.status(422).json({
         message: "Password Confirmation does not match Password!",
       });
@@ -59,19 +77,20 @@ class UsersController {
     // check if user already exists
     const userExists = await User.findOne({ where: { email } });
 
+    // create password
+    const salt = await bcrypt.genSalt(12);
+    const password_hash = await bcrypt.hash(password, salt);
+
     if (userExists) {
       res.status(422).json({ message: "The email is already being used!" });
     } else if (!userExists) {
       await User.create({ name, email, password_hash });
       res.status(201).json({ message: "Successfully registered user!" });
     }
-
-    // res.status(500).json({ message: "Unable to process your request!" });
   }
 
   async update(req, res) {
-    // eslint-disable-next-line prefer-destructuring
-    const id = req.params.id;
+    const { id } = req.params;
 
     const user = await User.findByPk(id);
 
@@ -80,9 +99,7 @@ class UsersController {
       return;
     }
 
-    // res.status(200).json(user);
-
-    const { name, email, password_hash, passwordConfirmation } = req.body;
+    const { name, email, password } = req.body;
 
     // validations
     if (!name) {
@@ -93,24 +110,21 @@ class UsersController {
       res.status(422).json({ message: "Email is required!" });
       return;
     }
-    if (!password_hash) {
+    if (!password) {
       res.status(422).json({ message: "Password is required!" });
       return;
     }
 
-    if (!passwordConfirmation) {
-      res.status(422).json({ message: "Password Confirmation is required!" });
-      return;
+    // check if passwords match
+    const passwordMatches = await bcrypt.compare(password, user.password_hash);
+
+    if (!passwordMatches) {
+      res.status(422).send({ message: "Invalid password!" });
     }
 
-    if (!passwordConfirmation || passwordConfirmation !== password_hash) {
-      res.status(422).json({
-        message: "Password Confirmation does not match Password!",
-      });
-      return;
-    }
+    // update name and/or email
     await User.update(
-      { name, email, password_hash },
+      { name, email },
       {
         where: {
           id,
@@ -121,8 +135,7 @@ class UsersController {
   }
 
   async destroy(req, res) {
-    // eslint-disable-next-line prefer-destructuring
-    const id = req.params.id;
+    const { id } = req.params;
 
     // find user
     const user = await User.findByPk(id);

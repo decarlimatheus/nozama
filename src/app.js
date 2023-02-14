@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 
 // routes
 import BooksRoutes from "./routes/BooksRoutes";
@@ -10,6 +11,7 @@ class App {
   constructor() {
     this.server = express();
     this.middlewares();
+    this.cors();
     this.routes();
   }
 
@@ -17,9 +19,15 @@ class App {
     this.server.use(express.json());
   }
 
+  cors() {
+    this.server.use(
+      cors({ credentials: true, origin: "http://localhost:3000" })
+    );
+  }
+
   routes() {
-    this.server.use(BooksRoutes);
-    this.server.use(UsersRoutes);
+    this.server.use("/books", BooksRoutes);
+    this.server.use("/users", UsersRoutes);
   }
 }
 

@@ -8,8 +8,7 @@ class BooksController {
   }
 
   async getById(req, res) {
-    // eslint-disable-next-line prefer-destructuring
-    const id = req.params.id;
+    const { id } = req.params;
 
     const book = await Books.findByPk(id);
 

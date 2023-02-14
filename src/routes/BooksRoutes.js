@@ -6,9 +6,9 @@ const routes = new Router();
 
 // books
 routes.get("/index", books.index);
-routes.get("/books/:id", books.getById);
-routes.post("/books/create", books.create);
-routes.patch("/books/edit/:id", books.update);
-routes.delete("/books/delete/:id", books.destroy);
+routes.get("/:id", books.getById);
+routes.post("/create", books.create);
+routes.patch("/edit/:id", books.update);
+routes.delete("/delete/:id", books.destroy);
 
 export default routes;
